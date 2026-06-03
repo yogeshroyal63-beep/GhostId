@@ -1,5 +1,4 @@
 import sqlite3
-import time
 
 from fastapi import APIRouter
 

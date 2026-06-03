@@ -1,0 +1,87 @@
+:root {
+  --bg: #06080c;
+  --surface: #0d1117;
+  --border: #1e2633;
+  --text: #e8eaed;
+  --muted: #7b7f8a;
+  --accent: #4a9eff;
+  --pass: #00e5a0;
+  --warn: #f5a623;
+  --challenge: #ff6b2b;
+  --stop: #ff2d55;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 20% 0%, #0a1628 0%, var(--bg) 50%);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+section {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+}
+
+code, pre {
+  font-family: "JetBrains Mono", monospace;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1.2rem;
+  font-weight: 600;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-danger {
+  background: var(--stop);
+  color: #fff;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
