@@ -1,4 +1,6 @@
 {
+  "_placeholder": true,
+  "_note": "PLACEHOLDER — not trained on CMU DSL data. Run ml/notebooks/ghostid_v3_training.ipynb on Kaggle and copy ghostid_encoder.onnx + scaler_params.json to backend/ml/",
   "mean": [
     0.12, 0.11, 0.13, 0.10, 0.14, 0.11, 0.12, 0.13, 0.11, 0.12,
     0.15, 0.13, 0.14, 0.12, 0.11, 0.13, 0.12, 0.14, 0.11, 0.13,
@@ -10,6 +12,5 @@
     0.04, 0.05, 0.06, 0.04, 0.05, 0.06, 0.04, 0.05, 0.06, 0.04,
     0.05, 0.06, 0.04, 0.05, 0.06, 0.04, 0.05, 0.06, 0.04, 0.05, 0.06,
     0.15, 0.14, 0.16, 0.13, 0.15, 0.14, 0.16, 0.13, 0.15, 0.14
-  ],
-  "_note": "Placeholder scaler — replace after running ghostid_v3_training.ipynb on Kaggle"
+  ]
 }

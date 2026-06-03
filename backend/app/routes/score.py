@@ -11,6 +11,7 @@ router = APIRouter(tags=["scoring"])
 
 @router.post("/score", response_model=ScoreResponse)
 async def score(req: ScoreRequest):
+    encoder_service.warn_if_placeholder_on_score()
     status = enrollment_service.get_status(req.user_id)
 
     if not status["enrolled"]:

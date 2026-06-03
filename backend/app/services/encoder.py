@@ -9,6 +9,12 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+PLACEHOLDER_WARNING = (
+    "⚠ GhostID running in PLACEHOLDER mode — scores are non-functional. "
+    "Run ml/notebooks/ghostid_v3_training.ipynb on Kaggle and copy "
+    "ghostid_encoder.onnx + scaler_params.json to backend/ml/"
+)
+
 
 class EncoderService:
     """ONNX encoder wrapper with deterministic placeholder fallback for development."""
@@ -40,14 +46,16 @@ class EncoderService:
                 self.placeholder_mode = False
                 logger.info("ONNX encoder loaded from %s", encoder_path)
             except Exception as exc:
-                logger.warning("ONNX load failed, using placeholder: %s", exc)
+                logger.warning("%s ONNX load failed: %s", PLACEHOLDER_WARNING, exc)
                 self.placeholder_mode = True
         else:
-            logger.warning(
-                "Encoder not found at %s — running in PLACEHOLDER mode",
-                encoder_path,
-            )
+            logger.warning(PLACEHOLDER_WARNING)
             self.placeholder_mode = True
+
+    def warn_if_placeholder_on_score(self) -> None:
+        """Log placeholder warning on every /score request when ONNX is not loaded."""
+        if self.placeholder_mode:
+            logger.warning(PLACEHOLDER_WARNING)
 
     @property
     def encoder_loaded(self) -> bool:
