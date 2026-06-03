@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Node
+node_modules/
+dist/
+*.local
+
+# Database
+*.db
+*.db-journal
+
+# ML artifacts (keep ONNX + scaler in repo; ignore large checkpoints)
+ml/models/*.pt
+ml/models/*.pth
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
