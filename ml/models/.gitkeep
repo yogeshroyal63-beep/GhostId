@@ -1,0 +1,6 @@
+# Trained model artifacts
+
+- `ghostid_encoder.onnx` — export from notebook cell 11 (~60KB)
+- `training_curves.png` — export from notebook cell 12
+
+The ONNX file is copied to `backend/ml/` for production inference.
