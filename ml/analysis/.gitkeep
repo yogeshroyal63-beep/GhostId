@@ -1,8 +1,0 @@
-# Analysis plots
-
-Generate these from the Kaggle training notebook (cells 8 and 10):
-
-- `ghostid_analysis.png` — genuine vs impostor score distribution + ROC curve
-- `poisoning_resistance.png` — EMA baseline poisoning resistance over 200 sessions
-
-Add the PNG files here before the hackathon demo for maximum judge impact.
