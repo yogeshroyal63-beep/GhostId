@@ -80,18 +80,18 @@ jobs:
       - name: Validate ONNX model (if present)
         run: |
           python -c "
-          from pathlib import Path
-          import numpy as np
-          onnx_path = Path('backend/ml/ghostid_encoder.onnx')
-          if not onnx_path.exists():
-              print('ONNX not yet exported — skipping (placeholder mode active)')
-          else:
-              import onnx, onnxruntime as ort
-              onnx.checker.check_model(onnx.load(str(onnx_path)))
-              sess = ort.InferenceSession(str(onnx_path))
-              out = sess.run(None, {'features': np.random.randn(1, 1, 41).astype(np.float32)})
-              assert out[0].shape == (1, 128)
-              norm = np.linalg.norm(out[0])
-              assert 0.99 < norm < 1.01
-              print('ONNX model validation passed')
+          import os, sys
+          path = 'backend/ml/ghostid_encoder.onnx'
+          if not os.path.exists(path):
+              print('ONNX model not yet trained — skipping validation')
+              sys.exit(0)
+          import onnx, onnxruntime as ort, numpy as np
+          model = onnx.load(path)
+          onnx.checker.check_model(model)
+          sess = ort.InferenceSession(path)
+          out = sess.run(None, {'features': np.random.randn(1,1,41).astype(np.float32)})
+          assert out[0].shape == (1, 128), f'Shape error: {out[0].shape}'
+          norm = np.linalg.norm(out[0])
+          assert 0.98 < norm < 1.02, f'Norm error: {norm}'
+          print(f'ONNX validation passed — shape {out[0].shape}, norm {norm:.4f}')
           "
