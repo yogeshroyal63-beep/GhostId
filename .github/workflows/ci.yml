@@ -1,0 +1,97 @@
+name: GhostID CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend:
+    name: Backend — Lint + Smoke Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install httpx ruff
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Smoke tests
+        run: |
+          python -c "from app.services.scoring import get_tier; assert get_tier(90)[0]=='SILENT_PASS'; assert get_tier(75)[0]=='SOFT_NUDGE'; assert get_tier(55)[0]=='TYPING_CHALLENGE'; assert get_tier(20)[0]=='HARD_STOP'; print('Scoring tiers OK')"
+          python -c "from app.services.scoring import should_update_baseline; assert should_update_baseline(85); assert not should_update_baseline(84); print('Baseline guard OK')"
+          python -c "from app.db.database import init_db; init_db(); print('DB init OK')"
+
+  frontend:
+    name: Frontend — Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+
+  ml-validate:
+    name: ML — Artifacts Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate scaler params
+        run: |
+          python -c "
+          import json
+          from pathlib import Path
+          data = json.loads(Path('backend/ml/scaler_params.json').read_text())
+          assert len(data['mean']) == 41
+          assert len(data['scale']) == 41
+          print('Scaler params OK (41 features)')
+          "
+
+      - name: Validate ONNX model (if present)
+        run: |
+          python -c "
+          from pathlib import Path
+          import numpy as np
+          onnx_path = Path('backend/ml/ghostid_encoder.onnx')
+          if not onnx_path.exists():
+              print('ONNX not yet exported — skipping (placeholder mode active)')
+          else:
+              import onnx, onnxruntime as ort
+              onnx.checker.check_model(onnx.load(str(onnx_path)))
+              sess = ort.InferenceSession(str(onnx_path))
+              out = sess.run(None, {'features': np.random.randn(1, 1, 41).astype(np.float32)})
+              assert out[0].shape == (1, 128)
+              norm = np.linalg.norm(out[0])
+              assert 0.99 < norm < 1.01
+              print('ONNX model validation passed')
+          "
