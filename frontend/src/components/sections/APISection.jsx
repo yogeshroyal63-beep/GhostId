@@ -15,10 +15,20 @@ export default function APISection() {
   const [open, setOpen] = useState(null);
 
   useEffect(() => {
-    api.health()
-      .then(setHealth)
-      .catch(() => setHealth({ status: "error", latency: 0 }));
+    const fetchHealth = () => {
+      api.health()
+        .then(setHealth)
+        .catch(() => setHealth({ status: "error", latency: 0, encoder_loaded: false }));
+    };
+
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const encoderBadge = health?.encoder_loaded
+    ? { emoji: "🟢", label: "ONNX encoder active", color: "var(--pass)" }
+    : { emoji: "🟡", label: "Placeholder mode", color: "var(--warn)" };
 
   return (
     <section id="api">
@@ -37,6 +47,7 @@ export default function APISection() {
           display: "flex",
           alignItems: "center",
           gap: "1rem",
+          flexWrap: "wrap",
         }}
       >
         <div
@@ -50,8 +61,23 @@ export default function APISection() {
         <span>
           API {health?.status === "ok" ? "Online" : "Offline"}
           {health?.latency != null && ` · ${health.latency}ms`}
-          {health?.placeholder_mode && " · Placeholder mode"}
         </span>
+        {health && (
+          <span
+            style={{
+              marginLeft: "auto",
+              padding: "0.35rem 0.85rem",
+              borderRadius: 20,
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              color: encoderBadge.color,
+              background: `${encoderBadge.color}22`,
+              border: `1px solid ${encoderBadge.color}44`,
+            }}
+          >
+            {encoderBadge.emoji} {encoderBadge.label}
+          </span>
+        )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
