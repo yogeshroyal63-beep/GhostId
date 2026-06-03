@@ -41,27 +41,47 @@ export default function HowItWorks() {
 
       <div
         className="card"
-        style={{ marginTop: "2rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}
+        style={{ marginTop: "2rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}
       >
         <div>
-          <h3 style={{ marginBottom: "0.5rem" }}>ML Summary</h3>
+          <h3 style={{ marginBottom: "0.75rem" }}>ML Summary</h3>
           <pre style={{ fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.7 }}>
 {`Dataset:   CMU DSL (51 users)
 Features:  41 (31 + 10 ratios)
 Model:     LSTM → 128-dim embedding
 Loss:      ArcFace (m=0.5)
-AUC:       ~0.98
-EER:       ~2–4%
-Size:      ~60KB ONNX`}
+Output:    L2-normalized cosine scoring`}
           </pre>
         </div>
         <div>
-          <h3 style={{ marginBottom: "0.5rem" }}>Analysis Plots</h3>
-          <p style={{ color: "var(--muted)", fontSize: "0.9rem", lineHeight: 1.6 }}>
-            Add <code>ghostid_analysis.png</code> and <code>poisoning_resistance.png</code> from
-            the Kaggle notebook to <code>ml/analysis/</code> for judge-facing ROC and EMA
-            poisoning resistance charts.
-          </p>
+          <h3 style={{ marginBottom: "0.75rem" }}>Score Distribution + ROC</h3>
+          <img
+            src="/analysis/ghostid_analysis.png"
+            alt="Genuine vs impostor score distribution and ROC curve"
+            style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
+          />
+        </div>
+      </div>
+
+      <div
+        className="card"
+        style={{ marginTop: "1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}
+      >
+        <div>
+          <h3 style={{ marginBottom: "0.75rem" }}>EMA Poisoning Resistance</h3>
+          <img
+            src="/analysis/poisoning_resistance.png"
+            alt="EMA baseline poisoning resistance over 200 sessions"
+            style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
+          />
+        </div>
+        <div>
+          <h3 style={{ marginBottom: "0.75rem" }}>Training Curve</h3>
+          <img
+            src="/analysis/training_curves.png"
+            alt="ArcFace training loss curve"
+            style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
+          />
         </div>
       </div>
     </section>
