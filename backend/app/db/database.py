@@ -45,5 +45,46 @@ def init_db() -> None:
             );
 
             CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_created ON sessions(created_at);
             """
         )
+
+
+def prune_old_sessions() -> int:
+    """
+    Delete sessions older than SESSION_RETENTION_DAYS and enforce
+    MAX_SESSIONS_PER_USER per user, keeping only the most recent ones.
+    Returns total rows deleted.
+    """
+    deleted = 0
+    with get_db() as conn:
+        # 1. Time-based pruning
+        cursor = conn.execute(
+            """
+            DELETE FROM sessions
+            WHERE created_at < datetime('now', ? || ' days')
+            """,
+            (f"-{settings.session_retention_days}",),
+        )
+        deleted += cursor.rowcount
+
+        # 2. Per-user cap: keep only the most recent MAX_SESSIONS_PER_USER
+        users = conn.execute("SELECT DISTINCT user_id FROM sessions").fetchall()
+        for row in users:
+            uid = row["user_id"]
+            cursor = conn.execute(
+                """
+                DELETE FROM sessions
+                WHERE user_id = ?
+                  AND id NOT IN (
+                      SELECT id FROM sessions
+                      WHERE user_id = ?
+                      ORDER BY created_at DESC
+                      LIMIT ?
+                  )
+                """,
+                (uid, uid, settings.max_sessions_per_user),
+            )
+            deleted += cursor.rowcount
+
+    return deleted

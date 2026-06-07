@@ -1,10 +1,21 @@
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_KEY = import.meta.env.VITE_API_KEY || "";
+
+function authHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  if (API_KEY) headers["X-GhostID-Key"] = API_KEY;
+  return headers;
+}
 
 async function request(path, options = {}) {
   const start = performance.now();
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     ...options,
+    // Merge headers rather than replace
+    ...(options.headers
+      ? { headers: { ...authHeaders(), ...options.headers } }
+      : {}),
   });
   const latency = Math.round(performance.now() - start);
   if (!res.ok) {

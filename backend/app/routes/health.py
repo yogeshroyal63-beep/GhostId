@@ -2,6 +2,7 @@ import sqlite3
 
 from fastapi import APIRouter
 
+from app.core.config import settings
 from app.db.database import get_db
 from app.models.schemas import HealthResponse
 from app.services.encoder import encoder_service
@@ -25,4 +26,6 @@ async def health():
         encoder_loaded=encoder_service.encoder_loaded,
         placeholder_mode=encoder_service.placeholder_mode,
         db_ok=db_ok,
+        encryption_enabled=bool(settings.embedding_encryption_key),
+        auth_enabled=bool(settings.api_key),
     )

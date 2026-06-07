@@ -3,6 +3,7 @@ import json
 import numpy as np
 
 from app.core.config import settings
+from app.core.crypto import decode_embedding, encode_embedding
 from app.db.database import get_db
 from app.services.encoder import encoder_service
 
@@ -16,21 +17,23 @@ ENROLL_MESSAGES = {
 class EnrollmentService:
     def enroll(self, user_id: str, raw_features: list[float]) -> dict:
         with get_db() as conn:
-            # Ensure profile row exists before inserting session (FK constraint)
-            conn.execute(
-                "INSERT OR IGNORE INTO profiles (user_id, embedding, session_count, enrolled) VALUES (?, ?, 0, 0)",
-                (user_id, "[]"),
-            )
             conn.execute(
                 "INSERT INTO sessions (user_id, features) VALUES (?, ?)",
                 (user_id, json.dumps(raw_features)),
             )
             rows = conn.execute(
-                "SELECT features FROM sessions WHERE user_id = ?",
-                (user_id,),
+                """
+                SELECT features FROM sessions
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (user_id, settings.max_sessions_per_user),
             ).fetchall()
 
-            embeddings = [encoder_service.encode(json.loads(row["features"])) for row in rows]
+            embeddings = [
+                encoder_service.encode(json.loads(row["features"])) for row in rows
+            ]
             baseline = np.mean(embeddings, axis=0)
             norm = np.linalg.norm(baseline)
             if norm > 0:
@@ -49,7 +52,7 @@ class EnrollmentService:
                     enrolled = excluded.enrolled,
                     updated_at = CURRENT_TIMESTAMP
                 """,
-                (user_id, json.dumps(baseline.tolist()), count, int(enrolled)),
+                (user_id, encode_embedding(baseline), count, int(enrolled)),
             )
 
         message = ENROLL_MESSAGES.get(count, f"Profile updated ({count} sessions).")
@@ -60,7 +63,7 @@ class EnrollmentService:
         if profile is None:
             return 0.0
 
-        baseline = np.array(json.loads(profile["embedding"]))
+        baseline = decode_embedding(profile["embedding"])
         current = encoder_service.encode(raw_features)
         similarity = float(np.dot(current, baseline))
         return float(np.clip(similarity * 100, 0, 100))
@@ -70,7 +73,7 @@ class EnrollmentService:
         if profile is None:
             return
 
-        old_baseline = np.array(json.loads(profile["embedding"]))
+        old_baseline = decode_embedding(profile["embedding"])
         current_emb = encoder_service.encode(raw_features)
         alpha = settings.ema_alpha
         new_baseline = old_baseline * (1 - alpha) + current_emb * alpha
@@ -84,7 +87,7 @@ class EnrollmentService:
                 UPDATE profiles SET embedding = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
-                (json.dumps(new_baseline.tolist()), user_id),
+                (encode_embedding(new_baseline), user_id),
             )
 
     def get_status(self, user_id: str) -> dict:
@@ -98,7 +101,9 @@ class EnrollmentService:
 
     def delete(self, user_id: str) -> bool:
         with get_db() as conn:
-            cursor = conn.execute("DELETE FROM profiles WHERE user_id = ?", (user_id,))
+            cursor = conn.execute(
+                "DELETE FROM profiles WHERE user_id = ?", (user_id,)
+            )
             return cursor.rowcount > 0
 
     def _get_profile(self, user_id: str):

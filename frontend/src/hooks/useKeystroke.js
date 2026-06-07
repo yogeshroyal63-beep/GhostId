@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { extractFeatures as _extractFeatures, FEATURE_SIZE } from "../../sdk/features.js";
 
 const MIN_KEYSTROKES = 10;
-const FEATURE_SIZE = 41;
 
 export function useKeystroke() {
   const [count, setCount] = useState(0);
@@ -32,28 +32,9 @@ export function useKeystroke() {
     };
   }, []);
 
+  /** Single source of truth: shared features.js */
   const extractFeatures = useCallback(() => {
-    const downs = {};
-    const dwells = [];
-
-    for (const ev of eventsRef.current) {
-      if (ev.type === "down") downs[ev.key] = ev.t;
-      if (ev.type === "up" && downs[ev.key] !== undefined) {
-        dwells.push((ev.t - downs[ev.key]) / 1000);
-        delete downs[ev.key];
-      }
-    }
-
-    const ratios = [];
-    for (let i = 0; i < dwells.length - 1; i++) {
-      let ratio = dwells[i] / (dwells[i + 1] + 1e-8);
-      ratio = Math.min(ratio, 10);
-      ratios.push(ratio);
-    }
-
-    const combined = [...dwells, ...ratios];
-    while (combined.length < FEATURE_SIZE) combined.push(0);
-    return combined.slice(0, FEATURE_SIZE);
+    return _extractFeatures(eventsRef.current);
   }, []);
 
   const clear = useCallback(() => {

@@ -54,3 +54,5 @@ class HealthResponse(BaseModel):
     encoder_loaded: bool
     placeholder_mode: bool
     db_ok: bool
+    encryption_enabled: bool
+    auth_enabled: bool

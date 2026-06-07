@@ -19,6 +19,26 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     placeholder_mode: bool = True
 
+    # --- Security ---
+    # Set via env: GHOSTID_API_KEY=your-secret-key
+    # If empty, auth is disabled (dev-only — never leave empty in production).
+    api_key: str = ""
+
+    # 32-byte URL-safe base64 key for Fernet embedding encryption.
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # If empty, embeddings are stored as plain JSON (dev mode).
+    embedding_encryption_key: str = ""
+
+    # --- Rate limiting ---
+    # Max requests per user_id per minute on /enroll and /score endpoints.
+    rate_limit_per_minute: int = 30
+
+    # --- Session hygiene ---
+    # Raw keystroke sessions older than this many days are pruned automatically.
+    session_retention_days: int = 30
+    # Only keep the most recent N sessions per user for baseline computation.
+    max_sessions_per_user: int = 20
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors(cls, value):

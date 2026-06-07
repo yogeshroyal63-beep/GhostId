@@ -6,12 +6,16 @@
  * const ghost = new GhostID({
  *   userId: 'user-123',
  *   apiUrl: 'http://localhost:8000',
+ *   apiKey: 'your-secret-key',       // matches GHOSTID_API_KEY on the server
  *   scoreIntervalMs: 60000,
  *   onTierChange: (r) => console.log(r.tier, r.confidence_score),
  *   onHardStop: () => window.location.href = '/login',
  * });
  * await ghost.start();
  */
+
+import { extractFeatures as _extractFeatures, FEATURE_SIZE } from "./features.js";
+
 class GhostID {
   static ERROR_CODES = {
     NETWORK_ERROR: "NETWORK_ERROR",
@@ -23,6 +27,7 @@ class GhostID {
   constructor(config = {}) {
     this.userId = config.userId;
     this.apiUrl = (config.apiUrl || "http://localhost:8000").replace(/\/$/, "");
+    this.apiKey = config.apiKey || "";
     this.scoreIntervalMs = config.scoreIntervalMs ?? 60000;
     this.minKeystrokes = config.minKeystrokes ?? 10;
     this.autoEnroll = config.autoEnroll ?? true;
@@ -31,7 +36,9 @@ class GhostID {
     this.onHardStop = config.onHardStop || (() => {});
     this.onSoftNudge = config.onSoftNudge || (() => {});
     this.onTypingChallenge = config.onTypingChallenge || (() => {});
-    this.onError = config.onError || ((err) => console.error("[GhostID]", err.code, err.message));
+    this.onError =
+      config.onError ||
+      ((err) => console.error("[GhostID]", err.code, err.message));
 
     this._events = [];
     this._downs = {};
@@ -50,7 +57,6 @@ class GhostID {
       return;
     }
     if (this._running) return;
-
     this._running = true;
     window.addEventListener("keydown", this._onKeyDown);
     window.addEventListener("keyup", this._onKeyUp);
@@ -67,7 +73,10 @@ class GhostID {
 
   async isEnrolled() {
     try {
-      const res = await fetch(`${this.apiUrl}/enroll/${encodeURIComponent(this.userId)}`);
+      const res = await fetch(
+        `${this.apiUrl}/enroll/${encodeURIComponent(this.userId)}`,
+        { headers: this._headers() }
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch {
@@ -100,34 +109,16 @@ class GhostID {
   }
 
   async simulateImpostor() {
+    // Send a placeholder body; server generates realistic random features.
     return this._post("/score/simulate-impostor", {
       user_id: this.userId,
-      features: Array(41).fill(0),
+      features: Array(FEATURE_SIZE).fill(0),
     });
   }
 
+  /** Extract the 41-feature vector from buffered events (shared logic). */
   extractFeatures() {
-    const downs = {};
-    const dwells = [];
-
-    for (const ev of this._events) {
-      if (ev.type === "down") downs[ev.key] = ev.t;
-      if (ev.type === "up" && downs[ev.key] !== undefined) {
-        dwells.push((ev.t - downs[ev.key]) / 1000);
-        delete downs[ev.key];
-      }
-    }
-
-    const ratios = [];
-    for (let i = 0; i < dwells.length - 1; i++) {
-      let ratio = dwells[i] / (dwells[i + 1] + 1e-8);
-      ratio = Math.min(ratio, 10);
-      ratios.push(ratio);
-    }
-
-    const combined = [...dwells, ...ratios];
-    while (combined.length < 41) combined.push(0);
-    return combined.slice(0, 41);
+    return _extractFeatures(this._events);
   }
 
   clearKeystrokes() {
@@ -149,13 +140,19 @@ class GhostID {
 
   _resetTypingIdleTimer() {
     clearTimeout(this._typingIdleTimer);
-    this._typingIdleTimer = setTimeout(() => this.clearKeystrokes(), this.scoreIntervalMs);
+    this._typingIdleTimer = setTimeout(
+      () => this.clearKeystrokes(),
+      this.scoreIntervalMs
+    );
   }
 
   _scheduleScoreCheck() {
     clearTimeout(this._scoreTimer);
     if (!this._running) return;
-    this._scoreTimer = setTimeout(() => this._runScoreCycle(), this.scoreIntervalMs);
+    this._scoreTimer = setTimeout(
+      () => this._runScoreCycle(),
+      this.scoreIntervalMs
+    );
   }
 
   async _runScoreCycle() {
@@ -178,7 +175,6 @@ class GhostID {
     if (result.tier === this._lastTier) return;
     this._lastTier = result.tier;
     this.onTierChange(result);
-
     switch (result.tier) {
       case "HARD_STOP":
         this.onHardStop(result);
@@ -189,26 +185,33 @@ class GhostID {
       case "TYPING_CHALLENGE":
         this.onTypingChallenge(result);
         break;
-      default:
-        break;
     }
   }
 
   _hasEnoughKeystrokes() {
-    const ups = this._events.filter((e) => e.type === "up").length;
-    return ups >= this.minKeystrokes;
+    return this._events.filter((e) => e.type === "up").length >= this.minKeystrokes;
+  }
+
+  _headers() {
+    const h = { "Content-Type": "application/json" };
+    if (this.apiKey) h["X-GhostID-Key"] = this.apiKey;
+    return h;
   }
 
   async _post(path, body) {
     try {
       const res = await fetch(`${this.apiUrl}${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this._headers(),
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        this._emitError(GhostID.ERROR_CODES.API_ERROR, data.detail || `HTTP ${res.status}`, data);
+        this._emitError(
+          GhostID.ERROR_CODES.API_ERROR,
+          data.detail || `HTTP ${res.status}`,
+          data
+        );
         return null;
       }
       return data;
