@@ -1,5 +1,29 @@
 # Deployment Guide
 
+## Docker (Recommended)
+
+### Quick Start
+
+1. Copy the environment template and configure:
+   ```bash
+   cp backend/.env.example backend/.env
+   # Edit backend/.env and fill in your values
+   ```
+
+2. Build and run all services:
+   ```bash
+   docker compose up --build
+   ```
+
+3. Access the services:
+   - **Backend API:** http://localhost:8000
+   - **Frontend:** http://localhost:5173
+   - **API Documentation:** http://localhost:8000/docs
+
+The backend and frontend run on a shared internal network (`ghostid-net`) and expose the specified ports to your host machine.
+
+---
+
 ## Backend → Railway
 
 1. Push this repo to GitHub (`gostid`)

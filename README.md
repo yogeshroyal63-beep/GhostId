@@ -184,13 +184,13 @@ Train the encoder on the CMU DSL Keystroke Dynamics Dataset:
 # Navigate to ML folder
 cd ml
 
-# Download CMU DSL dataset (or use Kaggle notebook link below)
+# Download CMU DSL dataset
 # Dataset: CMU-DSL Keystroke Dynamics
 ```
 
 ### Step 2: Run Training Notebook
 
-1. Go to: [Kaggle Notebook - GhostID v3 Training](https://www.kaggle.com/)
+1. Use: `GhostID_v3_training.ipynb` — see `ml/notebooks/` directory
 2. Attach dataset: `CMU-DSL/DSL-StrongPasswordData.csv`
 3. Run all cells (~5 minutes with GPU)
 4. Download outputs:
@@ -332,8 +332,9 @@ Just include the license notice.
 
 ## 🎥 Demo
 
-> **30-second demo GIF:**  
-> [Insert GIF showing keystroke capture → scoring → tier decision → UI feedback]
+> **Demo:**  
+> ![GhostID Demo](frontend/public/analysis/ghostid_analysis.png)  
+> *Score ring showing SILENT_PASS tier after behavioral verification*
 
 ---
 

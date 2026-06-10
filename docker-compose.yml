@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ghostid-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./ghostid.db
+    env_file:
+      - backend/.env
+    volumes:
+      - ./backend/ml:/app/ml
+    networks:
+      - ghostid-net
+    command: python main.py
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+    container_name: ghostid-frontend
+    ports:
+      - "5173:80"
+    networks:
+      - ghostid-net
+    depends_on:
+      - backend
+
+networks:
+  ghostid-net:
+    driver: bridge
