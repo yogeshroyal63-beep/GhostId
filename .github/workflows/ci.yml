@@ -30,6 +30,10 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
+      - name: Run pytest suite
+        run: |
+          pytest tests/ -v --tb=short
+
       - name: Smoke tests — scoring tiers
         run: |
           python -c "
