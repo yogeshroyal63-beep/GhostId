@@ -1,5 +1,4 @@
-import pytest
-import json
+import pytest  # type: ignore[import]
 import sys
 from pathlib import Path
 import numpy as np
@@ -9,14 +8,25 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from main import app
-from app.db.database import init_db, get_db
-from app.services.enrollment import enrollment_service
+from app.db.database import init_db
+from app.services.encoder import encoder_service
+from app.core import config as _config
+
+
+@pytest.fixture(scope="function", autouse=True)
+def isolated_db(tmp_path):
+    """Give every test its own SQLite file so session counts never bleed."""
+    db_file = str(tmp_path / "test_ghostid.db")
+    _config.settings.db_path = db_file
+    init_db()
+    yield
+    # cleanup handled by tmp_path
 
 
 @pytest.fixture(scope="function")
-def client():
-    """Initialize test database and provide a test client."""
-    init_db()
+def client(isolated_db):
+    """Provide a test client backed by the isolated DB."""
+    encoder_service.load()  # Load ONNX model (or fall back to placeholder gracefully)
     return TestClient(app)
 
 
@@ -50,7 +60,7 @@ class TestEnrollment:
         data = response.json()
         assert data["user_id"] == "test_user_1"
         assert data["session_count"] == 1
-        assert data["enrolled"] == False  # Min 2 sessions required
+        assert data["enrolled"]  # min_sessions_to_score=1 in config
 
     def test_enroll_multiple_sessions(self, client, sample_features):
         """Test enrolling user with multiple sessions."""
@@ -70,7 +80,7 @@ class TestEnrollment:
         )
         assert response2.status_code == 200
         assert response2.json()["session_count"] == 2
-        assert response2.json()["enrolled"] == True  # Now enrolled
+        assert response2.json()["enrolled"]  # Now enrolled
 
     def test_enroll_invalid_features_empty(self, client):
         """Test enrollment with empty features array."""
@@ -99,7 +109,7 @@ class TestEnrollment:
         assert response.status_code == 200
         data = response.json()
         assert data["user_id"] == user_id
-        assert data["enrolled"] == True
+        assert data["enrolled"]
         assert data["session_count"] == 2
 
     def test_get_enrollment_status_not_enrolled(self, client, sample_features):
@@ -110,7 +120,7 @@ class TestEnrollment:
         response = client.get(f"/enroll/{user_id}")
         assert response.status_code == 200
         data = response.json()
-        assert data["enrolled"] == False
+        assert data["enrolled"]  # min_sessions_to_score=1 in config
         assert data["session_count"] == 1
 
     def test_get_enrollment_status_nonexistent(self, client):
@@ -118,7 +128,7 @@ class TestEnrollment:
         response = client.get("/enroll/nonexistent_user")
         assert response.status_code == 200
         data = response.json()
-        assert data["enrolled"] == False
+        assert not data["enrolled"]
         assert data["session_count"] == 0
 
     def test_delete_profile(self, client, sample_features):
@@ -131,11 +141,11 @@ class TestEnrollment:
         response = client.delete(f"/enroll/{user_id}")
         assert response.status_code == 200
         data = response.json()
-        assert data["deleted"] == True
+        assert data["deleted"]
 
         # Verify profile is deleted
         status_response = client.get(f"/enroll/{user_id}")
-        assert status_response.json()["enrolled"] == False
+        assert not status_response.json()["enrolled"]
 
     def test_delete_nonexistent_profile(self, client):
         """Test deleting a profile that doesn't exist."""
@@ -161,7 +171,7 @@ class TestScoring:
         assert response.status_code == 200
         data = response.json()
         assert data["user_id"] == user_id
-        assert 0 <= data["score"] <= 100
+        assert 0 <= data["confidence_score"] <= 100
 
     def test_score_nonenrolled_user(self, client, sample_features):
         """Test scoring for a non-enrolled user."""
@@ -172,7 +182,7 @@ class TestScoring:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["score"] == 0.0  # Should return 0 for unenrolled
+        assert data["confidence_score"] == 0.0  # Should return 0 for unenrolled
 
 
 if __name__ == "__main__":

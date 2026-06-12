@@ -17,6 +17,16 @@ ENROLL_MESSAGES = {
 class EnrollmentService:
     def enroll(self, user_id: str, raw_features: list[float]) -> dict:
         with get_db() as conn:
+            # Ensure the profile row exists before inserting into sessions
+            # (sessions.user_id has a FK reference to profiles.user_id).
+            conn.execute(
+                """
+                INSERT INTO profiles (user_id, embedding, session_count, enrolled)
+                VALUES (?, '', 0, 0)
+                ON CONFLICT(user_id) DO NOTHING
+                """,
+                (user_id,),
+            )
             conn.execute(
                 "INSERT INTO sessions (user_id, features) VALUES (?, ?)",
                 (user_id, json.dumps(raw_features)),

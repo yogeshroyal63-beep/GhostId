@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Header, HTTPException, Request, status
 
 from app.core.config import settings
 
