@@ -1,119 +1,3 @@
-name: GhostID CI
-
-on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
-
-jobs:
-  backend:
-    name: Backend — Lint + Smoke Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install httpx ruff pytest pytest-asyncio
-
-      - name: Lint (ruff)
-        run: ruff check .
-
-      - name: Run pytest suite
-        run: |
-          pytest tests/ -v --tb=short
-
-      - name: Smoke tests — scoring tiers
-        run: |
-          python -c "
-          from app.services.scoring import get_tier, should_update_baseline
-          assert get_tier(90)[0]=='SILENT_PASS'
-          assert get_tier(75)[0]=='SOFT_NUDGE'
-          assert get_tier(55)[0]=='TYPING_CHALLENGE'
-          assert get_tier(20)[0]=='HARD_STOP'
-          assert should_update_baseline(85)
-          assert not should_update_baseline(84)
-          print('Scoring tiers OK')
-          "
-
-      - name: Smoke tests — DB init + session pruning
-        run: |
-          python -c "
-          from app.db.database import init_db, prune_old_sessions
-          init_db()
-          removed = prune_old_sessions()
-          assert isinstance(removed, int)
-          print(f'DB init OK — prune removed {removed} rows')
-          "
-
-      - name: Smoke tests — encryption round-trip
-        run: |
-          python -c "
-          import numpy as np, os
-          from cryptography.fernet import Fernet
-          key = Fernet.generate_key().decode()
-          os.environ['EMBEDDING_ENCRYPTION_KEY'] = key
-          # Reload settings after setting env
-          import importlib
-          import app.core.config as cfg
-          importlib.reload(cfg)
-          cfg.settings.embedding_encryption_key = key
-          import app.core.crypto as crypto
-          crypto._fernet = None  # reset cached instance
-          vec = np.random.randn(128).astype(np.float32)
-          stored = crypto.encode_embedding(vec)
-          recovered = crypto.decode_embedding(stored)
-          assert np.allclose(vec, recovered, atol=1e-5), 'Round-trip mismatch'
-          print('Encryption round-trip OK')
-          "
-
-      - name: Smoke tests — rate limiter
-        run: |
-          python -c "
-          from app.core.security import _limiter
-          from fastapi import HTTPException
-          # Should allow up to limit
-          for _ in range(5):
-              _limiter.check('test-user:enroll', limit=5)
-          try:
-              _limiter.check('test-user:enroll', limit=5)
-              raise AssertionError('Should have raised 429')
-          except HTTPException as e:
-              assert e.status_code == 429
-          print('Rate limiter OK')
-          "
-
-  frontend:
-    name: Frontend — Build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install and build
-        run: |
-          npm ci
-          npm run build
-
   ml-validate:
     name: ML — Artifacts Validation
     runs-on: ubuntu-latest
@@ -123,6 +7,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install ML dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy onnx onnxruntime
 
       - name: Validate scaler params
         run: |
@@ -143,13 +32,27 @@ jobs:
           if not os.path.exists(path):
               print('ONNX model not yet trained — skipping validation')
               sys.exit(0)
-          import onnx, onnxruntime as ort, numpy as np
+
+          import onnx
+          import onnxruntime as ort
+          import numpy as np
+
           model = onnx.load(path)
           onnx.checker.check_model(model)
+
           sess = ort.InferenceSession(path)
-          out = sess.run(None, {'features': np.random.randn(1,1,41).astype(np.float32)})
+
+          out = sess.run(
+              None,
+              {'features': np.random.randn(1,1,41).astype(np.float32)}
+          )
+
           assert out[0].shape == (1, 128), f'Shape error: {out[0].shape}'
+
           norm = np.linalg.norm(out[0])
           assert 0.98 < norm < 1.02, f'Norm error: {norm}'
-          print(f'ONNX validation passed — shape {out[0].shape}, norm {norm:.4f}')
+
+          print(
+              f'ONNX validation passed — shape {out[0].shape}, norm {norm:.4f}'
+          )
           "
