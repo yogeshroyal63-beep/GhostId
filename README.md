@@ -235,7 +235,7 @@ cd ml/
 
 **Step 2 — Run the training notebook**
 
-1. Open the [Kaggle Notebook](https://www.kaggle.com/) for GhostID v3 Training
+1. Open the [Kaggle Notebook](https://www.kaggle.com/code/yogeshrayal/ghostid-v3-training) for GhostID v3 Training
 2. Attach dataset: `CMU-DSL/DSL-StrongPasswordData.csv`
 3. Run all cells (~5 minutes with GPU T4)
 4. Download outputs: `ghostid_encoder.onnx` and `scaler_params.json`
@@ -461,6 +461,13 @@ Just 2 typing sessions. The baseline is valid for 7 days by default, after which
 
 **Q: What's the performance impact of running GhostID?**
 Negligible. The JS SDK runs asynchronously, ONNX inference is <1ms CPU, and scoring only fires every 60 seconds.
+
+---
+## 🎥 Demo
+
+![GhostID Demo](https://ghost-id-rho.vercel.app/demo.png)
+
+> Live demo: [ghost-id-rho.vercel.app](https://ghost-id-rho.vercel.app)
 
 ---
 
