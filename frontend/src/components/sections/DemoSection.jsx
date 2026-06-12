@@ -8,7 +8,7 @@ import { getTierConfig } from "../../utils/tiers";
 const USER_ID = "demo-user";
 
 export default function DemoSection({ onHardStop, onTierChange }) {
-  const { count, recentKeys, extractFeatures, clear, ready, minKeystrokes } = useKeystroke();
+  const { count, recentKeys, extractFeatures, clear, ready, minKeystrokes, pasteDetectedRef } = useKeystroke();
   const [score, setScore] = useState(0);
   const [tier, setTier] = useState("NOT_ENROLLED");
   const [enrolled, setEnrolled] = useState(false);
@@ -52,6 +52,11 @@ export default function DemoSection({ onHardStop, onTierChange }) {
   };
 
   const handleScore = async () => {
+    if (pasteDetectedRef.current) {
+      pasteDetectedRef.current = false;
+      applyResult({ confidence_score: 0, tier: "HARD_STOP", action: "paste_detected", enrolled: true, session_count: sessionCount });
+      return;
+    }
     if (!ready) return;
     setLoading(true);
     try {

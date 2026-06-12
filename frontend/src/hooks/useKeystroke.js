@@ -8,6 +8,7 @@ export function useKeystroke() {
   const [recentKeys, setRecentKeys] = useState([]);
   const eventsRef = useRef([]);
   const downsRef = useRef({});
+  const pasteDetectedRef = useRef(false);
 
   useEffect(() => {
     const onDown = (e) => {
@@ -24,15 +25,18 @@ export function useKeystroke() {
       );
     };
 
+    const onPaste = () => { pasteDetectedRef.current = true; };
+
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
+    window.addEventListener("paste", onPaste);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
+      window.removeEventListener("paste", onPaste);
     };
   }, []);
 
-  /** Single source of truth: shared features.js */
   const extractFeatures = useCallback(() => {
     return _extractFeatures(eventsRef.current);
   }, []);
@@ -51,5 +55,6 @@ export function useKeystroke() {
     clear,
     ready: count >= MIN_KEYSTROKES,
     minKeystrokes: MIN_KEYSTROKES,
+    pasteDetectedRef,
   };
 }
