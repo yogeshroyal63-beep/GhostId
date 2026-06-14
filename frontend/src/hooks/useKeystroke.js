@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { extractFeatures as _extractFeatures, FEATURE_SIZE } from "../../sdk/features.js";
+import { extractFeatures as _extractFeatures, FEATURE_SIZE } from "@sdk/features.js";
 
 const MIN_KEYSTROKES = 10;
 

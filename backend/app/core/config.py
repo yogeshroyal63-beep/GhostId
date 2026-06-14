@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     soft_nudge_threshold: float = 70.0
     typing_challenge_threshold: float = 40.0
     log_level: str = "INFO"
-    placeholder_mode: bool = True
 
     # --- Security ---
     # Set via env: GHOSTID_API_KEY=your-secret-key

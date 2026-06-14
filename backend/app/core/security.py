@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Header, HTTPException, status
 
 from app.core.config import settings
 
@@ -58,11 +58,7 @@ class RateLimiter:
 _limiter = RateLimiter()
 
 
-def enroll_rate_limit(request: Request) -> None:
-    """Rate-limit /enroll by user_id extracted from the request body.
-    Since FastAPI doesn't expose body in dependencies easily, we use client IP
-    as a fallback key. The route handlers call this directly with user_id."""
-    pass  # Route handlers call _limiter.check() directly with user_id.
+
 
 
 def check_rate_limit(user_id: str, endpoint: str) -> None:
