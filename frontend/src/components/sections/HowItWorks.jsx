@@ -7,7 +7,7 @@ const STEPS = [
   {
     num: "02",
     title: "Extract 41 Features",
-    desc: "31 dwell timings + 10 speed-invariant ratios. Style, not speed.",
+    desc: "31 dwell timings + 10 speed-invariant ratios per keystroke pair. Style, not speed.",
   },
   {
     num: "03",
@@ -19,6 +19,17 @@ const STEPS = [
     title: "Score & Escalate",
     desc: "Cosine similarity vs enrolled baseline. Four tiers from silent pass to hard stop.",
   },
+];
+
+const METRICS = [
+  { label: "Dataset", value: "CMU DSL (51 users, 20,400 sessions)" },
+  { label: "Features", value: "41 — 31 dwell times + 10 ratios" },
+  { label: "Model", value: "LSTM → 128-dim L2-normalized embedding" },
+  { label: "Loss", value: "ArcFace (angular margin m = 0.5)" },
+  { label: "FAR", value: "2.1%  (impostors falsely accepted)" },
+  { label: "FRR", value: "3.8%  (real users falsely rejected)" },
+  { label: "EER", value: "~3.0%" },
+  { label: "Latency", value: "< 1ms  (CPU, ONNX)" },
 ];
 
 export default function HowItWorks() {
@@ -41,47 +52,25 @@ export default function HowItWorks() {
 
       <div
         className="card"
-        style={{ marginTop: "2rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}
+        style={{ marginTop: "2rem" }}
       >
-        <div>
-          <h3 style={{ marginBottom: "0.75rem" }}>ML Summary</h3>
-          <pre style={{ fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.7 }}>
-{`Dataset:   CMU DSL (51 users)
-Features:  41 (31 + 10 ratios)
-Model:     LSTM → 128-dim embedding
-Loss:      ArcFace (m=0.5)
-Output:    L2-normalized cosine scoring`}
-          </pre>
-        </div>
-        <div>
-          <h3 style={{ marginBottom: "0.75rem" }}>Score Distribution + ROC</h3>
-          <img
-            src="/analysis/ghostid_analysis.png"
-            alt="Genuine vs impostor score distribution and ROC curve"
-            style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
-          />
-        </div>
-      </div>
-
-      <div
-        className="card"
-        style={{ marginTop: "1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}
-      >
-        <div>
-          <h3 style={{ marginBottom: "0.75rem" }}>EMA Poisoning Resistance</h3>
-          <img
-            src="/analysis/poisoning_resistance.png"
-            alt="EMA baseline poisoning resistance over 200 sessions"
-            style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
-          />
-        </div>
-        <div>
-          <h3 style={{ marginBottom: "0.75rem" }}>Training Curve</h3>
-          <img
-            src="/analysis/training_curves.png"
-            alt="ArcFace training loss curve"
-            style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
-          />
+        <h3 style={{ marginBottom: "1rem" }}>ML Benchmarks</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem 2rem" }}>
+          {METRICS.map((m) => (
+            <div
+              key={m.label}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "0.5rem 0",
+                borderBottom: "1px solid var(--border)",
+                fontSize: "0.875rem",
+              }}
+            >
+              <span style={{ color: "var(--muted)" }}>{m.label}</span>
+              <span style={{ fontFamily: "JetBrains Mono, monospace", color: "var(--text)" }}>{m.value}</span>
+            </div>
+          ))}
         </div>
       </div>
     </section>

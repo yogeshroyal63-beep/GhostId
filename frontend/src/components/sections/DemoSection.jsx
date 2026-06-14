@@ -51,10 +51,16 @@ export default function DemoSection({ onHardStop, onTierChange }) {
     }
   };
 
-  const handleScore = async () => {
+  const handleScore = useCallback(async () => {
     if (pasteDetectedRef.current) {
       pasteDetectedRef.current = false;
-      applyResult({ confidence_score: 0, tier: "HARD_STOP", action: "paste_detected", enrolled: true, session_count: sessionCount });
+      applyResult({
+        confidence_score: 0,
+        tier: "HARD_STOP",
+        action: "paste_detected",
+        enrolled: true,
+        session_count: sessionCount,
+      });
       return;
     }
     if (!ready) return;
@@ -67,7 +73,7 @@ export default function DemoSection({ onHardStop, onTierChange }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pasteDetectedRef, ready, extractFeatures, applyResult, addEvent, sessionCount]);
 
   const handleImpostor = async () => {
     setLoading(true);
@@ -108,7 +114,7 @@ export default function DemoSection({ onHardStop, onTierChange }) {
     if (!autoScore || !ready || !enrolled) return;
     const timer = setInterval(handleScore, 30000);
     return () => clearInterval(timer);
-  }, [autoScore, ready, enrolled]);
+  }, [autoScore, ready, enrolled, handleScore]);
 
   const tierConfig = getTierConfig(tier);
   const progress = Math.min((count / minKeystrokes) * 100, 100);
