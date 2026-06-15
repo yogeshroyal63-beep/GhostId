@@ -3,6 +3,7 @@ import json
 import logging
 from pathlib import Path
 
+
 import numpy as np
 
 from app.core.config import settings
@@ -26,9 +27,10 @@ class EncoderService:
         self.placeholder_mode = True
 
     def load(self) -> None:
-        encoder_path = Path(settings.encoder_path)
-        scaler_path = Path(settings.scaler_path)
-
+    # Resolve paths relative to this file's location, not the process CWD
+        base_dir = Path(__file__).resolve().parent.parent.parent  # backend/
+        encoder_path = base_dir / settings.encoder_path
+        scaler_path = base_dir / settings.scaler_path
         if scaler_path.exists():
             with open(scaler_path, encoding="utf-8") as handle:
                 params = json.load(handle)
@@ -68,11 +70,12 @@ class EncoderService:
         return x
 
     def _placeholder_embedding(self, features: list[float]) -> np.ndarray:
-        """Deterministic pseudo-embedding from feature hash (demo-only)."""
-        payload = json.dumps([round(f, 6) for f in features]).encode()
-        seed = int(hashlib.sha256(payload).hexdigest()[:8], 16)
-        rng = np.random.default_rng(seed)
-        embedding = rng.standard_normal(128).astype(np.float32)
+        """Smooth placeholder: similar features → similar embeddings (demo-only)."""
+        x = np.array(features, dtype=np.float32)
+        # Use a fixed seed for the projection matrix (reproducible across calls)
+        rng = np.random.default_rng(42)
+        projection = rng.standard_normal((len(x), 128)).astype(np.float32)
+        embedding = x @ projection  # linear projection preserves similarity
         norm = np.linalg.norm(embedding)
         if norm > 0:
             embedding = embedding / norm
