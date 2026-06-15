@@ -29,7 +29,7 @@ export default function App() {
           borderTop: "1px solid var(--border)",
         }}
       >
-        GhostID v3 · Hackathon Edition · Built by Yogesh Rayal · GitHub DevDays 2026
+        GhostID v3 · Built by Yogesh Rayal 
       </footer>
       <HardStopOverlay visible={hardStop} onDismiss={() => setHardStop(false)} />
     </>

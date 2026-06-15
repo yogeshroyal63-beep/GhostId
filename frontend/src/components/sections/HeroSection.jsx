@@ -17,7 +17,7 @@ export default function HeroSection() {
           marginBottom: "1rem",
         }}
       >
-        GITHUB DEVDAYS · JUNE 2026
+        
       </p>
       <h1 style={{ fontSize: "clamp(2.5rem, 6vw, 4rem)", lineHeight: 1.1, marginBottom: "1rem" }}>
         Your typing fingerprint.
