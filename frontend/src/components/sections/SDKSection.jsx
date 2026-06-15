@@ -8,7 +8,7 @@ const SNIPPETS = {
 <script>
   const ghost = new GhostID({
     userId: "user-123",
-    apiUrl: "https://your-api.railway.app",
+    apiUrl: "https://ghostid.onrender.com",
     scoreIntervalMs: 60000,
     onTierChange: (r) => console.log(r.tier, r.confidence_score),
     onHardStop: () => { window.location.href = "/login"; },
