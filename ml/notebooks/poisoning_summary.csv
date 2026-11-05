@@ -1,0 +1,7 @@
+,adaptive baseline,frozen baseline
+pairs,90.0,90.0
+genuine probes >= 85 (%),3.4,3.2
+"impostor probes >= 85 (leak, %)",0.0,0.0
+"impostor probes < 40 (hard stop, %)",94.0,94.0
+median probes to first hard stop,0.0,0.0
+mean baseline drift (cosine),0.997,1.0

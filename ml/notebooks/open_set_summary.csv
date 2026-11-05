@@ -1,0 +1,23 @@
+method,k,EER %,AUC
+Ablation: no ratio feats,2,32.99 ± 3.58,0.714 ± 0.042
+Ablation: softmax loss,2,25.99 ± 4.33,0.789 ± 0.047
+Baseline: Euclidean,2,30.3 ± 3.08,0.734 ± 0.038
+Baseline: Scaled Manhattan,2,25.85 ± 2.96,0.792 ± 0.033
+"GhostID (ArcFace, 41 feats)",2,32.26 ± 4.96,0.721 ± 0.056
+Ablation: no ratio feats,5,27.33 ± 3.14,0.779 ± 0.036
+Ablation: softmax loss,5,22.55 ± 2.8,0.826 ± 0.034
+Baseline: Euclidean,5,28.33 ± 3.14,0.757 ± 0.037
+Baseline: Scaled Manhattan,5,23.7 ± 3.0,0.816 ± 0.033
+"GhostID (ArcFace, 41 feats)",5,28.29 ± 4.85,0.767 ± 0.054
+Ablation: no ratio feats,10,24.33 ± 2.42,0.818 ± 0.029
+Ablation: softmax loss,10,19.1 ± 2.88,0.865 ± 0.033
+Baseline: Euclidean,10,25.84 ± 2.86,0.785 ± 0.032
+Baseline: Mahalanobis (shrinkage),10,24.07 ± 3.01,0.812 ± 0.032
+Baseline: Scaled Manhattan,10,23.18 ± 2.91,0.823 ± 0.031
+"GhostID (ArcFace, 41 feats)",10,25.35 ± 5.45,0.807 ± 0.058
+Ablation: no ratio feats,50,14.82 ± 1.95,0.909 ± 0.021
+Ablation: softmax loss,50,10.52 ± 2.15,0.945 ± 0.019
+Baseline: Euclidean,50,19.91 ± 3.91,0.856 ± 0.039
+Baseline: Mahalanobis (shrinkage),50,19.11 ± 3.9,0.869 ± 0.037
+Baseline: Scaled Manhattan,50,17.74 ± 4.07,0.881 ± 0.037
+"GhostID (ArcFace, 41 feats)",50,15.55 ± 1.86,0.904 ± 0.022

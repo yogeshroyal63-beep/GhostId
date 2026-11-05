@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 PLACEHOLDER_WARNING = (
     "⚠ GhostID running in PLACEHOLDER mode — scores are non-functional. "
-    "Run ml/notebooks/ghostid_v3_training.ipynb on Kaggle and copy "
+    "Run ml/notebooks/ghostid_v4_evaluation.ipynb on Kaggle and copy "
     "ghostid_encoder.onnx + scaler_params.json to backend/ml/"
 )
 

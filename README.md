@@ -1,518 +1,302 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/GhostID-1a1a2e?style=for-the-badge&logo=ghost&logoColor=white" alt="GhostID" />
-
 # 👻 GhostID
 
-### *Continuous Behavioral Session Verification — Zero Friction for Real Users*
+### Continuous Keystroke-Dynamics Verification with Metric Learning
 
-**Drop one script into any web app. GhostID silently verifies whether the person currently typing is the same person who logged in. Only impostors get interrupted.**
-
-<br/>
+**An ArcFace-trained LSTM encoder, evaluated open-set against classical baselines, packaged as a drop-in session-verification service.**
 
 [![CI](https://github.com/yogeshroyal63-beep/GhostId/actions/workflows/ci.yml/badge.svg)](https://github.com/yogeshroyal63-beep/GhostId/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776ab?logo=python&logoColor=white)
-![Node](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)
 ![ONNX](https://img.shields.io/badge/ONNX-Runtime-005CED?logo=onnx&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)
 
-**Built by [Yogesh Rayal](https://github.com/yogeshroyal63-beep)**
+[Abstract](#abstract) · [Results](#results) · [Method](#method) · [Protocol](#evaluation-protocol) · [Reproduce](#reproducing-the-results) · [Limitations](#limitations) · [System](#system-implementation) · [Deploy](#deployment)
 
----
-
-[What It Does](#-what-it-does) · [Architecture](#️-architecture) · [ML Pipeline](#-ml-pipeline) · [Quick Start](#-quick-start) · [Benchmarks](#-benchmark-results) · [Security](#-security) · [Deploy](#-deployment)
+[Live demo](https://ghost-id-rho.vercel.app)
 
 </div>
 
 ---
 
-## 🧠 What It Does
+## Abstract
 
-Traditional session security breaks the moment a session token is stolen or a user steps away from their device. GhostID solves this without cameras, OTPs, or user friction.
+Session tokens prove who logged in, not who is typing now. GhostID verifies identity continuously from keystroke timing alone, with no camera, OTP, or user action. We train a 2-layer LSTM encoder with an ArcFace angular-margin loss on the CMU keystroke dynamics benchmark (51 typists, 400 password repetitions each) and score a live sample by cosine similarity to an enrolled embedding centroid. Unlike the common closed-set evaluation, we also report **open-set** results on typists the model never saw in training, compare against three classical detectors (Euclidean, Scaled Manhattan, shrinkage Mahalanobis), and ablate the loss function and feature set.
 
-After login, GhostID runs silently in the background. Every **60 seconds** (configurable), it extracts a **41-feature keystroke vector** from the user's typing and compares it against their enrolled behavioral baseline using an LSTM encoder + cosine similarity.
+On enrolled users the model reaches a mean per-user EER of **3.09%** (AUC 0.989). On **unseen** users the picture is much harder: with 2 enrollment samples the EER is **32.3%**, worse than Scaled Manhattan (25.9%); the encoder only overtakes the classical baselines at 50 enrollment samples (15.6% vs. 17.7%). Replacing ArcFace with a plain softmax loss improves open-set EER to **10.5%** at k=50, the best result we measured. The encoder runs in **0.18 ms** per query on CPU.
 
-The result is a confidence score from 0–100 that maps to one of four tiers:
+> All numbers below are produced by [`ml/notebooks/ghostid_v4_evaluation.ipynb`](ml/notebooks/ghostid_v4_evaluation.ipynb), which is committed with its outputs.
+
+---
+
+## Key Findings
+
+- **Closed-set accuracy overstates generalization.** 3.09% EER on enrolled users becomes 15.6-32.3% on unseen users, depending on enrollment size.
+- **ArcFace (s=64, m=0.5) underperforms plain softmax** in the open-set setting, at every enrollment size tested. We have not tuned the margin or scale.
+- **The 10 hold-time ratio features give no measurable benefit** (differences are within one standard deviation).
+- **Classical detectors are strong at small k.** Scaled Manhattan beats the ArcFace encoder for k ≤ 10.
+- **The default 85/70/40 thresholds are not calibrated** for the encoder: at 85, 31.65% of genuine closed-set probes would not pass silently.
+
+---
+
+## Contributions
+
+1. **Open-set evaluation** of keystroke verification: unseen-user EER, mean ± std over 5 random user splits, rather than only same-user holdout.
+2. **Baseline and ablation study** on an identical protocol: three classical detectors, ArcFace vs. softmax, with vs. without engineered hold-time ratio features, and enrollment size k ∈ {2, 5, 10, 50}.
+3. **Poisoning analysis** of the exponential-moving-average baseline update across all victim/attacker pairs (inconclusive at the current thresholds, see Results).
+4. **A deployable system**: ONNX encoder, FastAPI service, encrypted embedding storage, browser SDK, and a four-tier action policy.
+
+---
+
+## Results
+
+Dataset: CMU DSL Keystroke Dynamics ([Killourhy & Maxion, DSN 2009](https://www.cs.cmu.edu/~keystroke/)), 51 subjects × 400 repetitions of `.tie5Roanl`.
+
+### Open-set verification (headline)
+
+10 typists are held out and never seen in training; the other 41 train the encoder. For each held-out user, the first *k* samples enroll them, their remaining samples are genuine probes, and **all** samples of the other 9 held-out users are impostor probes. Metric: mean per-user EER, mean ± std over 5 seeds (lower is better).
+
+| Method | k=2 | k=5 | k=10 | k=50 |
+|:--|:-:|:-:|:-:|:-:|
+| GhostID (ArcFace, 41 features) | 32.26 ± 4.96 | 28.29 ± 4.85 | 25.35 ± 5.45 | 15.55 ± 1.86 |
+| GhostID variant (softmax loss) | 25.99 ± 4.33 | **22.55 ± 2.80** | **19.10 ± 2.88** | **10.52 ± 2.15** |
+| Scaled Manhattan | **25.85 ± 2.96** | 23.70 ± 3.00 | 23.18 ± 2.91 | 17.74 ± 4.07 |
+| Euclidean | 30.30 ± 3.08 | 28.33 ± 3.14 | 25.84 ± 2.86 | 19.91 ± 3.91 |
+| Mahalanobis (shrinkage) | n/a | n/a | 24.07 ± 3.01 | 19.11 ± 3.90 |
+
+Bold marks the best entry per column. AUC for the ArcFace model at k=2: **0.721 ± 0.056** (k=50: 0.904 ± 0.022); softmax variant at k=50: 0.945 ± 0.019. Mahalanobis needs enough samples to estimate a covariance, so it is only run for k ≥ 10.
+
+![Open-set score distribution and ROC](ml/analysis/open_set_analysis.png)
+
+### Ablations (open-set, mean ± std over 5 seeds)
+
+| Variant | EER (%), k=2 | EER (%), k=50 |
+|:--|:-:|:-:|
+| Full model (ArcFace + 41 features) | 32.26 ± 4.96 | 15.55 ± 1.86 |
+| Softmax loss instead of ArcFace | 25.99 ± 4.33 | 10.52 ± 2.15 |
+| 31 raw features (no hold-time ratios) | 32.99 ± 3.58 | 14.82 ± 1.95 |
+
+### Closed-set (enrolled users, product setting)
+
+Same 80/20 per-user split used during development, with the scaler fit on training rows only and impostors drawn from **all** other users' test samples. This is optimistic because the encoder trained on these identities. We report it for transparency and do not treat it as the headline.
+
+| Operating point | FAR | FRR |
+|:--|:-:|:-:|
+| SILENT_PASS (score ≥ 85) | 0.03% | 31.65% |
+| SOFT_NUDGE (score ≥ 70) | 0.11% | 16.47% |
+| TYPING_CHALLENGE (score ≥ 40) | 0.95% | 5.71% |
+
+Per-user EER **3.09%** (std 4.80 across users), pooled EER **3.89%**, AUC **0.989**, over 51 users (3,978 genuine and 204,000 impostor probes). The current 85/70/40 thresholds trade a very low false-accept rate for frequent challenges of genuine users; they have not been tuned.
+
+### Poisoning resistance
+
+90 victim/attacker pairs among the held-out users. The victim types 50 genuine probes, then the attacker takes over for 100 probes. The adaptive baseline updates (EMA, α = 0.08) only when score ≥ 85.
+
+| | Adaptive baseline | Frozen baseline |
+|:--|:-:|:-:|
+| Genuine probes passing silently (%) | 3.4 | 3.2 |
+| Impostor probes passing silently (leak, %) | 0.0 | 0.0 |
+| Impostor probes reaching HARD_STOP (%) | 94.0 | 94.0 |
+| Median probes until first HARD_STOP | 0 | 0 |
+| Mean baseline drift (cosine to original) | 0.997 | 1.000 |
+
+**This test is uninformative as run.** Only about 3% of genuine probes from unseen users reach the 85 threshold, so the adaptive baseline almost never updates and behaves like the frozen one. A meaningful test needs thresholds recalibrated for the open-set score distribution. Impostors never leak through silently, but this mostly reflects how few probes pass at all.
+
+### Efficiency
+
+| | |
+|:--|:-:|
+| ONNX model size | 3.31 MB (single file) |
+| Inference latency (CPU, batch 1, ONNX Runtime) | 0.18 ms |
+| Embedding dimension | 128 (L2-normalized) |
+
+---
+
+## Method
+
+### Features (41)
+
+The 31 timing features of the CMU benchmark per password repetition: 11 key hold times (H), 10 down-down latencies (DD), 10 up-down latencies (UD). We append 10 **hold-time ratios** between adjacent keys, `H[i] / H[i+1]`, intended to reduce sensitivity to overall typing speed. Features are standardized with a scaler fit on training users only and saved to `scaler_params.json`.
+
+### Encoder
+
+A 2-layer LSTM (hidden size 256, dropout 0.3) applied to the 41-d vector as a length-1 sequence, followed by LayerNorm, dropout, and a linear projection to a 128-d L2-normalized embedding. Each sample is therefore scored independently; the recurrent state is not used across time steps.
+
+### Training objective
+
+ArcFace loss (scale s = 64, angular margin m = 0.5) over the training identities, optimized with AdamW (lr 1e-3, weight decay 1e-4, cosine schedule, 60 epochs, batch 64, gradient clipping 1.0). The encoder is trained as a classifier over training users and used as a feature extractor, so new users are enrolled without retraining.
+
+### Verification and action policy
+
+1. **Enroll:** average the L2-normalized embeddings of the first samples into a centroid.
+2. **Score:** cosine similarity between the live embedding and the centroid, scaled to 0-100.
+3. **Act:**
 
 | Score | Tier | Action |
-|:------|:-----|:-------|
-| 85–100 | `✅ SILENT_PASS` | Session continues — user never knows GhostID ran |
-| 70–84 | `💬 SOFT_NUDGE` | One-tap confirm ("Still you?") |
-| 40–69 | `⌨️ TYPING_CHALLENGE` | Re-verify by typing a short phrase |
-| 0–39 | `🔴 HARD_STOP` | Session terminated — full re-authentication required |
+|:--|:--|:--|
+| ≥ 85 | `SILENT_PASS` | Log only; baseline may update |
+| 70-84 | `SOFT_NUDGE` | One-tap confirmation |
+| 40-69 | `TYPING_CHALLENGE` | Re-verify with a randomized phrase |
+| < 40 | `HARD_STOP` | End session; full re-authentication |
 
-> **No camera. No OTP. No friction for real users. Only impostors get stopped.**
-
----
-
-## 🎯 Use Cases
-
-| Domain | Threat Addressed |
-|:-------|:----------------|
-| 🎓 **Online Exams** | Mid-exam handoff to a different person |
-| 🏢 **Corporate / HR** | Ghost employees clocking in for absent colleagues |
-| 🏦 **Fintech / Banking** | Cookie hijacking before high-value transactions |
-| 🏥 **Healthcare / EHR** | Shared workstation walk-away identity exposure |
-| 🔐 **SaaS Platforms** | Credential sharing across multiple users |
+4. **Adapt:** when score ≥ 85, `baseline ← (1 − α)·baseline + α·embedding` with α = 0.08, to follow natural drift. The poisoning analysis above measures the risk this creates.
 
 ---
 
-## 🏗️ Architecture
+## Evaluation Protocol
 
-GhostID is a four-layer system: a browser SDK, a FastAPI inference backend, an ONNX encoder, and a scoring engine.
-
-```
-╔══════════════════════════════════════════════════════════════════╗
-║                        USER'S BROWSER                           ║
-║                                                                  ║
-║   ┌──────────────────────────────────────────────────────────┐   ║
-║   │                    ghostid.js (SDK)                     │   ║
-║   │                                                          │   ║
-║   │  • Passively captures keystroke press/release timings   │   ║
-║   │  • Extracts 41 behavioral features per window           │   ║
-║   │  • Runs comparison every 60s (tunable interval)         │   ║
-║   │  • Reacts to tier decision (nudge / challenge / stop)   │   ║
-║   └──────────────────────┬───────────────────────────────────┘   ║
-╚═════════════════════════╪════════════════════════════════════════╝
-                          │
-              POST /enroll  (×2 for baseline)
-              POST /score   (every 60 seconds)
-                          │
-                          ▼
-╔══════════════════════════════════════════════════════════════════╗
-║                   FASTAPI BACKEND (Python)                      ║
-║                                                                  ║
-║   ┌──────────────────────────────────────────────────────────┐   ║
-║   │  Auth & Rate Limiting                                   │   ║
-║   │  • API key via X-GhostID-Key header                     │   ║
-║   │  • 100 req/min per user (configurable)                  │   ║
-║   ├──────────────────────────────────────────────────────────┤   ║
-║   │  Feature Processing                                     │   ║
-║   │  • Normalize 41 features with saved scaler_params.json  │   ║
-║   │  • Fernet-encrypt embeddings before SQLite storage      │   ║
-║   └──────────────────────┬───────────────────────────────────┘   ║
-╚═════════════════════════╪════════════════════════════════════════╝
-                          │
-                          ▼
-╔══════════════════════════════════════════════════════════════════╗
-║                  ONNX ENCODER (Inference)                       ║
-║                                                                  ║
-║   Input  → 41 scaled keystroke features                         ║
-║   Model  → Bidirectional LSTM → 128-dim bottleneck              ║
-║   Output → 128-dim L2-normalized behavioral embedding           ║
-║   Size   → ~60 KB  |  Latency → <1ms CPU inference             ║
-╚═════════════════════════╪════════════════════════════════════════╝
-                          │
-                          ▼
-╔══════════════════════════════════════════════════════════════════╗
-║               SIMILARITY SCORING & TIER ENGINE                  ║
-║                                                                  ║
-║   • Cosine similarity: live embedding vs. enrolled baseline     ║
-║   • Scale raw similarity → 0–100 confidence score              ║
-║   • Map score → [SILENT_PASS | SOFT_NUDGE | CHALLENGE | STOP]  ║
-║   • Return action decision to browser SDK                       ║
-╚══════════════════════════════════════════════════════════════════╝
-```
-
-### Data Flow Summary
-
-```
-User types  →  ghostid.js collects timings
-           →  41 features extracted client-side
-           →  POST /score to FastAPI
-           →  Feature scaling + ONNX inference
-           →  128-dim embedding compared to baseline
-           →  Confidence score computed
-           →  Tier decision returned
-           →  SDK reacts (silent / nudge / challenge / stop)
-```
+- **User-disjoint splits.** 10 of 51 users held out per seed; seeds 0-4 give different splits.
+- **No scaler leakage.** The scaler is fit on training users only.
+- **Chronological enrollment.** Enrollment uses the first *k* samples in file order, which is chronological per user; probes are the later samples.
+- **All-pairs impostors.** Every other held-out user's samples serve as impostor probes, not a random subset.
+- **Per-user EER** averaged over held-out users, the convention of the original benchmark. Pooled EER is reported only for the closed-set check.
+- **Baselines** use the 31 raw timing features with the same scaler and splits. Scaled Manhattan uses a variance floor so that small *k* does not produce zero deviations.
 
 ---
 
-## 📁 Project Structure
-
-```
-GhostId/
-├── backend/                        # FastAPI inference server
-│   ├── app/
-│   │   ├── core/                  # Config, security, crypto helpers
-│   │   ├── db/                    # SQLite database layer
-│   │   ├── models/                # Pydantic request/response schemas
-│   │   ├── routes/                # API endpoints: /enroll, /score, /status
-│   │   ├── services/              # Business logic (scoring, enrollment)
-│   │   └── middleware/            # API key auth, rate limiting
-│   ├── ml/                        # ONNX model + scaler_params.json
-│   ├── tests/                     # pytest suite (10+ test cases)
-│   ├── main.py                    # FastAPI application entry point
-│   ├── requirements.txt           # Python dependencies
-│   └── .env.example               # Environment variable template
-│
-├── frontend/                       # React + Vite demo app
-│   ├── src/
-│   │   ├── components/            # UI components (tiers, nudge, challenge)
-│   │   ├── hooks/                 # useKeystroke — live feature capture hook
-│   │   └── utils/                 # API client, tier mapping utilities
-│   ├── package.json
-│   └── vite.config.js
-│
-├── sdk/                            # Drop-in browser library
-│   ├── ghostid.js                 # Main SDK — add to any web app
-│   └── features.js                # 41-feature extraction engine
-│
-├── ml/                             # Model training & evaluation
-│   ├── notebooks/
-│   │   └── ghostid_training.ipynb      # Full training pipeline
-│   ├── models/                    # Saved ONNX + scaler params
-│   └── analysis/                  # Benchmark plots, EER curves
-│
-├── .github/
-│   └── workflows/
-│       └── ci.yml                 # GitHub Actions: lint, test, build, ONNX validate
-│
-├── DEPLOYMENT.md                  # Production setup guide (Docker, Railway, Vercel)
-├── LICENSE                        # MIT License
-└── README.md
-```
-
----
-
-## 🧬 ML Pipeline
-
-GhostID trains an LSTM auto-encoder using **ArcFace loss** on the CMU DSL Keystroke Dynamics Dataset.
-
-### Feature Extraction (41 Features)
-
-Each keystroke window produces 41 features capturing the *rhythm* of a user's typing:
-
-```
-• Dwell time         — how long each key is held down
-• Flight time        — time between key release and next key press
-• Latency metrics    — inter-key timing distributions
-• Speed-invariant ratios — angle features that normalize for typing speed
-```
-
-### Model Architecture
-
-```
-Input (41 features)
-       │
-       ▼
-  ┌─────────────────────────────────────────────────┐
-  │           Feature Scaling (saved scaler)        │
-  └──────────────────────────┬──────────────────────┘
-                             │
-                             ▼
-  ┌─────────────────────────────────────────────────┐
-  │         Bidirectional LSTM Encoder              │
-  │   • 2× BiLSTM layers with dropout               │
-  │   • Bottleneck: 128-dimensional embedding       │
-  │   • L2 normalization on output                  │
-  └──────────────────────────┬──────────────────────┘
-                             │
-                             ▼
-  ┌─────────────────────────────────────────────────┐
-  │   ArcFace Loss (angular margin m = 0.5)         │
-  │   • Pulls same-user embeddings together         │
-  │   • Pushes different-user embeddings apart      │
-  └─────────────────────────────────────────────────┘
-                             │
-                             ▼
-  128-dim L2-normalized behavioral embedding
-  → enables fast cosine similarity at inference time
-```
-
-### Training Steps
-
-**Step 1 — Download the dataset**
+## Reproducing the Results
 
 ```bash
-# CMU DSL Keystroke Dynamics Dataset
-# File: DSL-StrongPasswordData.csv
-# Available on Kaggle: search "CMU DSL Keystroke Dynamics"
-cd ml/
+git clone https://github.com/yogeshroyal63-beep/GhostId && cd GhostId
 ```
 
-**Step 2 — Run the training notebook**
+1. Download `DSL-StrongPasswordData.csv` from the [CMU page](https://www.cs.cmu.edu/~keystroke/) (MD5 `470235f96568f28f9ea0da62234ec857`).
+2. Open `ml/notebooks/ghostid_v4_evaluation.ipynb` on Kaggle or locally, point `DATA_PATH` to the CSV, and run all cells (about 20-40 minutes on one GPU). `QUICK = True` runs a 1-seed smoke test.
+3. Outputs: `open_set_summary.csv`, `poisoning_summary.csv`, `open_set_analysis.png`, `ghostid_encoder.onnx`, `scaler_params.json`.
+4. Copy the model pair to `backend/ml/`. They must be replaced together.
 
-1. Open the [Kaggle Notebook](https://www.kaggle.com/code/yogeshrayal/ghostid-v3-training) for GhostID v3 Training
-2. Attach dataset: `CMU-DSL/DSL-StrongPasswordData.csv`
-3. Run all cells (~5 minutes with GPU T4)
-4. Download outputs: `ghostid_encoder.onnx` and `scaler_params.json`
+The earlier training notebook `ghostid_v3_training.ipynb` is kept for history. Its in-README metrics were not backed by saved outputs and have been superseded by the results above.
 
-**Step 3 — Deploy the models**
+---
 
-```bash
-cp ghostid_encoder.onnx ../backend/ml/
-cp scaler_params.json   ../backend/ml/
+## Limitations
+
+Read these before relying on any number above.
+
+- **Fixed-text data.** CMU contains one password typed repeatedly. Free-text and cross-password generalization are untested.
+- **One dataset, 51 users.** No cross-keyboard, cross-device, or long-term drift evaluation beyond the dataset's 8 sessions.
+- **Casual impostors only.** Impostors are other dataset users typing normally, not attackers who observe and imitate the victim's rhythm.
+- **Small enrollment.** The product enrolls with 2 samples; accuracy depends strongly on *k* (see the table).
+- **Single time step.** The LSTM sees one 41-d vector, so it behaves as a gated feed-forward encoder, not a sequence model.
+- **Closed-set numbers are optimistic.** Use the open-set table for claims about new users.
+- **Thresholds are uncalibrated.** At the default SILENT_PASS of 85, 31.65% of genuine closed-set probes are challenged.
+- **Loss hyperparameters untuned.** ArcFace scale and margin were not swept, so the ArcFace-vs-softmax gap may shrink with tuning.
+- **Ratio features unproven.** The hold-time ratios did not measurably help.
+- **Not evaluated:** mobile on-screen keyboards, copy-paste detection, adversarial or replay attacks, accessibility, and demographic fairness.
+
+---
+
+## System Implementation
+
+```
+Browser SDK (ghostid.js)  ──POST /enroll, /score──▶  FastAPI backend  ──▶  ONNX encoder
+  • captures key timings                              • API-key auth, rate limit   • 41 → 128-d embedding
+  • extracts 41 features                              • scaler, Fernet-encrypted   • L2-normalized
+  • polls every 60 s                                    embedding storage (SQLite)
+                                                      • cosine score → tier
 ```
 
-> **Mock mode:** Without these files in `backend/ml/`, the backend auto-falls back to placeholder scoring — great for frontend development without a trained model.
-
----
-
-## 📊 Benchmark Results
-
-Evaluated on the **CMU DSL Keystroke Dynamics Dataset** (51 users, 400 sessions/user, 20,400 sessions total):
-
-| Metric | Value | What It Means |
-|:-------|:------|:--------------|
-| **FAR** (False Accept Rate) | **2.1%** | Impostors accepted as legitimate |
-| **FRR** (False Reject Rate) | **3.8%** | Legitimate users incorrectly challenged |
-| **EER** (Equal Error Rate) | **~3.0%** | Balanced operating point |
-| **Inference Latency** | **< 1ms** | Per scoring query on CPU |
-| **Model Size** | **~60 KB** | ONNX format — tiny and deployable |
-| **Enrollment Sessions** | **2** | Minimum required to build baseline |
-| **Baseline Validity** | **7 days** | Before re-enrollment is recommended |
-
-> At EER ~3.0%, GhostID is more accurate than many OTP systems while requiring zero user action for the 96%+ of sessions that are legitimate.
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Python 3.11+** with `pip`
-- **Node.js 20+** with `npm`
-- **SQLite** (bundled with Python)
-
----
-
-### 1️⃣ Backend Setup
-
-```bash
-cd backend
-
-# Create and activate virtual environment
-python -m venv .venv
-source .venv/bin/activate          # macOS/Linux
-# .venv\Scripts\activate           # Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env — set API_KEY and EMBEDDING_ENCRYPTION_KEY
-
-# Initialize the database
-python -c "from app.db.database import init_db; init_db(); print('✅ DB initialized')"
-
-# Start the API server
-python main.py
+```
+backend/   FastAPI service (routes, services, core, db, models, tests)
+frontend/  React + Vite demo
+sdk/       ghostid.js, features.js (drop-in browser library)
+ml/        notebooks, analysis, saved models
 ```
 
-**Backend:** `http://localhost:8000` · **API Docs:** `http://localhost:8000/docs`
-
----
-
-### 2️⃣ Frontend Setup
-
-```bash
-cd frontend
-
-npm install
-cp .env.example .env
-# Set VITE_API_URL=http://localhost:8000 and VITE_API_KEY
-
-npm run dev
-```
-
-**Frontend:** `http://localhost:5173`
-
----
-
-### 3️⃣ SDK Integration (Drop-in)
-
-Add GhostID to any existing web app in two lines:
+### SDK
 
 ```html
 <script src="ghostid.js"></script>
 <script>
   GhostID.init({
     userId: 'user-123',
-    apiUrl: 'https://your-backend.railway.app',
+    apiUrl: 'https://your-backend.example.com',
     apiKey: 'your-api-key',
     intervalSeconds: 60,
-    onAction: (tier, score) => {
-      if (tier === 'HARD_STOP') redirectToLogin();
-    }
+    onAction: (tier, score) => { if (tier === 'HARD_STOP') redirectToLogin(); }
   });
 </script>
 ```
 
----
-
-### 4️⃣ Run Tests
+### Run locally
 
 ```bash
-cd backend
-
-# Full test suite
-pytest tests/test_endpoints.py -v
-
-# With coverage report
-pytest tests/test_endpoints.py --cov=app --cov-report=term-missing
+cd backend && python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt && cp .env.example .env   # set API_KEY, EMBEDDING_ENCRYPTION_KEY
+python -c "from app.db.database import init_db; init_db()" && python main.py
+# in another terminal
+cd frontend && npm install && cp .env.example .env && npm run dev
 ```
 
-**Test coverage includes:**
+API docs at `http://localhost:8000/docs`. Without model files in `backend/ml/`, the backend falls back to deterministic mock embeddings so the UI stays testable.
 
-- ✅ Health check endpoint
-- ✅ User enrollment (single & multiple sessions)
-- ✅ Enrollment status retrieval
-- ✅ Profile deletion
-- ✅ Scoring for enrolled and non-enrolled users
-- ✅ Input validation and error handling
-
----
-
-## 🔐 Security
-
-GhostID is built security-first:
-
-| Feature | Details |
-|:--------|:--------|
-| **API Key Auth** | Bearer token via `X-GhostID-Key` header on every request |
-| **Rate Limiting** | 100 requests/min per user — configurable |
-| **Encrypted Embeddings** | Fernet symmetric encryption for all stored embeddings |
-| **CORS Protection** | Configurable allowed origins list |
-| **Input Validation** | Strict 41-feature vector schema via Pydantic |
-| **No Raw Keystrokes Stored** | Only statistical feature vectors — GDPR friendly |
-| **Secure Defaults** | `.env.example` template with guidance on key generation |
-
----
-
-## 🚢 Deployment
-
-### Docker (Recommended)
+### Tests
 
 ```bash
-# Configure environment
-cp backend/.env.example backend/.env
-# Edit backend/.env with your keys
-
-# Build and run everything
-docker compose up --build
+cd backend && pytest tests/test_endpoints.py -v
 ```
-
-Services start on:
-- **Backend API:** `http://localhost:8000`
-- **Frontend:** `http://localhost:5173`
 
 ---
 
-### Production: Backend → Railway
+## Security
+
+| Feature | Detail |
+|:--|:--|
+| API authentication | `X-GhostID-Key` header on every request |
+| Rate limiting | 100 requests/min per user, configurable |
+| Embedding storage | Fernet symmetric encryption at rest |
+| Input validation | Strict 41-feature schema (Pydantic) |
+| Data minimization | Only statistical feature vectors are sent and stored, never raw keystrokes |
+| CORS | Configurable origin allow-list |
+
+Behavioral biometrics are personal data in many jurisdictions. Operators are responsible for consent and legal compliance.
+
+---
+
+## Deployment
 
 ```bash
-# In Railway dashboard:
-# New Project → Deploy from GitHub → Root: backend/
-# Start command:
-uvicorn main:app --host 0.0.0.0 --port $PORT
-
-# Environment variables to set:
-EMBEDDING_ENCRYPTION_KEY=<generated-key>
-API_KEY=<your-api-key>
-DATABASE_URL=sqlite:///ghostid.db
+cp backend/.env.example backend/.env   # set keys
+docker compose up --build              # backend :8000, frontend :5173
 ```
 
-### Production: Frontend → Vercel
-
-```bash
-# In Vercel dashboard:
-# Root: frontend/ | Build: npm run build | Output: dist/
-
-# Environment variables:
-VITE_API_URL=https://your-backend.up.railway.app
-VITE_API_KEY=your-api-key
-```
-
-### Post-Training Deployment Checklist
-
-```
-☐  Run ml/notebooks/ghostid_training.ipynb on Kaggle (GPU ~5 min)
-☐  Copy ghostid_encoder.onnx   → backend/ml/
-☐  Copy scaler_params.json     → backend/ml/
-☐  Copy analysis PNGs          → ml/analysis/
-☐  Re-run CI — ONNX validation job should pass
-☐  Set production environment variables
-☐  Deploy backend to Railway
-☐  Deploy frontend to Vercel
-```
+Production guide for Railway and Vercel: [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ---
 
-## ❓ FAQ
+## Future Work
 
-**Q: Does GhostID work on mobile browsers?**
-Yes — the JavaScript SDK captures touch-keyboard keystroke timings. Feature extraction adapts to on-screen keyboards automatically.
-
-**Q: What if the ONNX model files aren't present?**
-The backend runs in **mock mode** with placeholder scoring. This lets frontend developers build and test the UI without a trained model.
-
-**Q: Can GhostID detect copy-paste attacks?**
-Yes — copy-pasted input produces zero inter-key flight time, which scores as a significant behavioral anomaly.
-
-**Q: Is keystroke data stored in the clear?**
-No. Raw keystrokes are never transmitted. Only the 41-feature statistical vector is sent, and embeddings stored in the database are Fernet-encrypted.
-
-**Q: How long does enrollment take?**
-Just 2 typing sessions. The baseline is valid for 7 days by default, after which re-enrollment is recommended to account for natural behavioral drift.
-
-**Q: What's the performance impact of running GhostID?**
-Negligible. The JS SDK runs asynchronously, ONNX inference is <1ms CPU, and scoring only fires every 60 seconds.
-
----
-## 🎥 Demo
-
-![GhostID Demo](https://ghost-id-rho.vercel.app/demo.png)
-
-> Live demo: [ghost-id-rho.vercel.app](https://ghost-id-rho.vercel.app)
+- Sweep ArcFace scale and margin, and recalibrate the action thresholds on open-set scores.
+- Evaluate on free-text keystroke corpora and on mobile keyboards.
+- Hold out entire sessions or days to measure long-term drift.
+- Test targeted-mimicry attacks, not only casual impostors.
+- Model a window of keystrokes as a sequence rather than a single vector.
+- Replace the fixed EMA with a drift-aware update that bounds how far the baseline can move.
 
 ---
 
-## 🤝 Contributing
+## Citation
 
-Contributions are welcome — bug fixes, new features, documentation, and test coverage.
-
-```bash
-# 1. Fork the repo and clone your fork
-git clone https://github.com/your-username/GhostId.git
-
-# 2. Create a feature branch
-git checkout -b feature/my-improvement
-
-# 3. Make your changes and commit
-git commit -m "feat: add my improvement"
-
-# 4. Push and open a Pull Request
-git push origin feature/my-improvement
+```bibtex
+@software{ghostid2026,
+  author = {Rayal, Yogesh},
+  title  = {GhostID: Continuous Keystroke-Dynamics Verification with Metric Learning},
+  year   = {2026},
+  url    = {https://github.com/yogeshroyal63-beep/GhostId}
+}
 ```
 
-All PRs must pass CI (lint, tests, build, ONNX validation) before merging.
+Dataset and baseline methodology: K. Killourhy and R. Maxion, *Comparing Anomaly-Detection Algorithms for Keystroke Dynamics*, IEEE/IFIP DSN, 2009. Loss function: J. Deng et al., *ArcFace: Additive Angular Margin Loss for Deep Face Recognition*, CVPR, 2019.
 
----
+## License
 
-## 📄 License
-
-This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
-
-You are free to use, modify, and distribute this project commercially or privately. Just include the license notice.
-
----
-
-## 📞 Support & Docs
-
-- 📖 **Production guide:** [`DEPLOYMENT.md`](DEPLOYMENT.md)
-- 🐛 **Bug reports:** [GitHub Issues](https://github.com/yogeshroyal63-beep/GhostId/issues)
-- 💬 **Questions:** [GitHub Discussions](https://github.com/yogeshroyal63-beep/GhostId/discussions)
+MIT, see [LICENSE](LICENSE).
 
 ---
 
 <div align="center">
 
-**GhostID — Your users have a typing fingerprint. GhostID watches it.**
-
-*Built with ❤️ by [Yogesh Rayal](https://github.com/yogeshroyal63-beep)*
+**Built by [Yogesh Rayal](https://github.com/yogeshroyal63-beep)** · [Issues](https://github.com/yogeshroyal63-beep/GhostId/issues)
 
 </div>

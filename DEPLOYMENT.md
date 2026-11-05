@@ -52,7 +52,7 @@ cd frontend && npm install && npm run dev
 
 ## Post-Training Checklist
 
-- [ ] Run `ml/notebooks/ghostid_v3_training.ipynb` on Kaggle
+- [ ] Run `ml/notebooks/ghostid_v4_evaluation.ipynb` on Kaggle
 - [ ] Copy `ghostid_encoder.onnx` + `scaler_params.json` → `backend/ml/`
 - [ ] Copy analysis PNGs → `ml/analysis/`
 - [ ] Re-run CI — ONNX validation job should pass
