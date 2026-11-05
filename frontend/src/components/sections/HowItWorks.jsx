@@ -12,7 +12,7 @@ const STEPS = [
   {
     num: "03",
     title: "Encode to 128-dim Embedding",
-    desc: "LSTM encoder (ONNX, ~60KB) maps features into a learned behavioral space.",
+    desc: "LSTM encoder (ONNX, 3.3 MB) maps features into a learned behavioral space.",
   },
   {
     num: "04",
@@ -26,10 +26,10 @@ const METRICS = [
   { label: "Features", value: "41 — 31 dwell times + 10 ratios" },
   { label: "Model", value: "LSTM → 128-dim L2-normalized embedding" },
   { label: "Loss", value: "ArcFace (angular margin m = 0.5)" },
-  { label: "FAR", value: "2.1%  (impostors falsely accepted)" },
-  { label: "FRR", value: "3.8%  (real users falsely rejected)" },
-  { label: "EER", value: "~3.0%" },
-  { label: "Latency", value: "< 1ms  (CPU, ONNX)" },
+  { label: "EER (enrolled users)", value: "3.09%" },
+  { label: "EER (unseen users)", value: "10.5-32%  (depends on enrollment size)" },
+  { label: "FAR / FRR @ score ≥ 70", value: "0.11% / 16.5%" },
+  { label: "Latency", value: "0.18 ms  (CPU, ONNX)" },
 ];
 
 export default function HowItWorks() {
